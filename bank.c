@@ -1,17 +1,17 @@
-
+/*
+* Lab 6
+* Task 5
+* Tamara Pando 
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
 #include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/sem.h>
+#include <sys/ipc.h>	// for semaphore sys V operations
+#include <sys/sem.h>	// for functions semget() to get semaphore, and semctl() set initial value of semget() 
 #include <sys/stat.h> 
 #include <sys/wait.h>
-
-    // for functions semget() to get semaphore, and semctl() set initial value of semget() 
-#define KEY1 1100
-#define KEY2 1111
 
 #define CHILD      			0  			/* Return value of child proc from fork call */
 #define TRUE       			0  
@@ -19,19 +19,23 @@
 
 FILE *fp1, *fp2, *fp3, *fp4;			/* File Pointers */
 
-int count = 0; 
-union semun {
+//********************************** Keys for defining sem1 and sem2**********************************
+#define KEY1 1100	// semaphore keys
+#define KEY2 1111
+
+union semun {		// to link both semaphores
     int val;
     struct semid_ds *buf;
     unsigned short  *array;
 };
 
-int sem1, sem2;
+int sem1, sem2;				// my semaphore sets
 
-int SEM_ON(int sem_id, int sem_val);
+int SEM_ON(int sem_id, int sem_val);	//functions inplemented at the end of main
 int SEM_OFF(int sem_id);
 int P(int sem_id);
 int V(int sem_id);
+//*****************************************************************************************************
 
 int main()
 {
@@ -42,15 +46,17 @@ int main()
 	int status;						// Exit status of child process
 	int bal1, bal2;					// Balance read by processes
 	int flag, flag1;				// End of loop variables
-	int dad = 0, son1 =0, son2=0; 
 
-    // set semaphores
+	int dad = 0, son1 = 0, son2 = 0; //*********** keep count of waiting processes 
+
+    //********************************************************** Setting semaphores******
     sem1 = semget(KEY1, 1, IPC_CREAT | 0666); 
     if(sem1 < 0)
     {
         perror("ERROR: semget sem1\n"); 
         exit(EXIT_FAILURE); 
     }
+
     sem2 = semget(KEY2, 1, IPC_CREAT | 0666); 
     if(sem2 < 0)
     {
@@ -58,18 +64,19 @@ int main()
         exit(EXIT_FAILURE); 
     }
    
-	SEM_ON(sem1,1); //originally 1,0,1
-    SEM_ON(sem2,0); 
- 
-	//Initialize the file balance to be $100                                // ** fp1 opens "balance" and writes the initial amount of the accnt 100
-	fp1 = fopen("balance","w");                                             //** prints this to the file at this point there should be 100 
+	SEM_ON(sem1,1); // sem1 initial value 1
+    SEM_ON(sem2,0); // sem2 initial value 0
+	//************************************************************************************
+
+	//Initialize the file balance to be $100                                
+	fp1 = fopen("balance","w");                                              
 	bal1 = 100;
 	fprintf(fp1, "%d\n", bal1);
 	fclose(fp1);
 	
 	//Initialize the number of attempts to be 20                           
 	fp4 = fopen("attempt", "w");
-	N_Att = 29;//originally 20
+	N_Att = 20;//originally 2
 	fprintf(fp4, "%d\n", N_Att);
 	fclose(fp4);
 	
@@ -82,17 +89,16 @@ int main()
 	}
 	
 	if (pid == CHILD){
-	//First Child Process. Dear old dad tries to do some updates.                  *********** DAD process P1
+	//First Child Process. Dear old dad tries to do some updates.                  DAD PROCESS 
 		N=5;  // originally 5
 		for(i=1;i<=N; i++)
 		{   
            
-           P(sem1);
+            P(sem1); //*********************************************** waiting P(sem1)
 			printf("Dear old dad is trying to do update.\n");             
 			fp1 = fopen("balance", "r+");
-            dad++; 
-			printf("DAD waited %d times\n",dad);
-            //P(sem1); //------------------------------------------------------------------wait sem2 semwait 
+            dad++; // increment before waiting 
+			printf("DAD waited %d times\n",dad);  //msg for printing total waiting number of times 
 			fscanf(fp1, "%d", &bal2);
 			printf("Dear old dad reads balance = %d \n", bal2);
 			
@@ -102,15 +108,15 @@ int main()
 			bal2 += 60;
 			printf("Dear old dad writes new balance = %d \n", bal2);        
 			fprintf(fp1, "%d \n", bal2);
-            V(sem2); //-----------------------------------------------------------------> signal sem1   semsignal 
-            V(sem1);  //this works 
+            V(sem2); //***********************************************signal V(sem2) 
+            V(sem1); //***********************************************signal V(sem1)
 			fclose(fp1);
 			printf("Dear old dad is done doing update. \n");
 			sleep(rand()%5);	/* Go have coffee for 0-4 sec. */
 			
 	
 		}   
-	}                                                                               //********** end of DAD process P1
+	}                                                                   //END OF DAD PROCESS
 	else
 	{
 		//Parent Process. Fork off another child process.
@@ -127,10 +133,10 @@ int main()
 			flag = FALSE;
 			while(flag == FALSE) 
 			{
-                son1++; 
+                son1++; 									// counting son1's waiting times 
 				printf("SON1 waited %d times\n",son1);
-                P(sem2);//-----------------------------sem
-				fp3 = fopen("attempt" , "r+");                      //** son1 is checking the balance 
+                P(sem2);//*********************************************** waiting P(sem2)
+				fp3 = fopen("attempt" , "r+");                    
 				fscanf(fp3, "%d", &N_Att);
 				if(N_Att == 0)
 				{
@@ -143,7 +149,7 @@ int main()
 
 					printf("Poor SON_1 wants to withdraw money.\n");
                    
-					fp2 = fopen("balance", "r+");                               // **son1 reads the balance 
+					fp2 = fopen("balance", "r+");                              
 					
                     fscanf(fp2,"%d", &bal2);
 					printf("Poor SON_1 reads balance. Available Balance: %d \n", bal2);
@@ -159,7 +165,7 @@ int main()
 						sleep(rand()%5);
 						fseek(fp2,0L, 0);
 						bal2 -=20;
-						printf("Poor SON_1 write new balance: %d \n", bal2);    // ** SON1 CS new balance
+						printf("Poor SON_1 write new balance: %d \n", bal2);    
                     
 						fprintf(fp2,"%d\n", bal2);
 						fclose(fp2);
@@ -168,8 +174,8 @@ int main()
 						fseek(fp3,0L, 0);
 						N_Att -=1;
 						fprintf(fp3, "%d\n", N_Att);
-                        V(sem1);
-                        V(sem2); // -------------------------------------------------------- signal sem2
+                        V(sem1); //***********************************************signal V(sem1)
+                        V(sem2); //***********************************************signal V(sem2)
 						fclose(fp3); 
                        
 					}
@@ -191,15 +197,14 @@ int main()
 			{
 				printf("Second Son's Pid: %d\n",getpid());                              
 				//Third child process. Second poor son tries to do updates.
-                //wait??
                  
 				flag1 = FALSE;
 				while(flag1 == FALSE) 
 				{
-                    son2++; 
+                    son2++; // counter for son2's waiting time 
 					printf("SON2 waited %d times\n",son2);
-                    P(sem2);// wait--------------------------sem
-					fp3 = fopen("attempt" , "r+");                              // **  
+                    P(sem2);//*********************************************** waiting P(sem2)
+					fp3 = fopen("attempt" , "r+");                              
                     
 					fscanf(fp3, "%d", &N_Att);
 					if(N_Att == 0)
@@ -213,7 +218,7 @@ int main()
                         
 						printf("Poor SON_2 wants to withdraw money.\n");
                         
-						fp2 = fopen("balance", "r+");                               // ** SON2 reads balance 
+						fp2 = fopen("balance", "r+");                               
 						fscanf(fp2,"%d", &bal2);
 						printf("Poor SON_2 reads balance. Available Balance: %d \n", bal2);
 						if (bal2 == 0)
@@ -229,7 +234,7 @@ int main()
 							fseek(fp2,0L, 0);
 							bal2 -=20;
                             
-							printf("Poor SON_2 write new balance: %d \n", bal2);        // ** SON2 CS new balance 
+							printf("Poor SON_2 write new balance: %d \n", bal2);       
 							fprintf(fp2,"%d\n", bal2);
 							fclose(fp2);
                             
@@ -237,10 +242,10 @@ int main()
 							fseek(fp3,0L, 0);
 							N_Att -=1;
 							fprintf(fp3, "%d\n", N_Att);
-                            V(sem1); // -------------------------------------------------------- signal sem2 
-                            V(sem2); 
+                            V(sem1); //***********************************************signal V(sem1)
+                            V(sem2); //***********************************************signal V(sem2)
 							fclose(fp3);       
-                                                                   // ** SON2 CS ends 
+                                                                   
 						}
 					}  
 				
@@ -258,8 +263,8 @@ int main()
 			
 				pid = wait(&status);
 				printf("Process(pid = %d) exited with the status %d. \n", pid, status);
-                SEM_OFF(sem1); //-------------------------- turn off semaphores 
-                SEM_OFF(sem2); 
+                SEM_OFF(sem1); //************************************turn off semaphores 
+                SEM_OFF(sem2); //************************************turn off semaphores 
 
                 
 			}
@@ -289,7 +294,6 @@ int SEM_OFF(int sem_id)
 int P(int sem_id)
 {
     struct sembuf sem_buf; 
-
     sem_buf.sem_num = 0; 
     sem_buf.sem_op = -1; 
     sem_buf.sem_flg = SEM_UNDO; 
@@ -301,7 +305,6 @@ int P(int sem_id)
 int V(int sem_id)
 {
     struct sembuf sem_buf; 
-
     sem_buf.sem_num = 0; 
     sem_buf.sem_op = 1; 
     sem_buf.sem_flg = SEM_UNDO; 
