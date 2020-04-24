@@ -1,7 +1,8 @@
 /*
 * Lab 6
 * Task 5
-* Tamara Pando 
+* Tamara Pando
+needs more changes  
 */
 #include <stdio.h>
 #include <stdlib.h>
